@@ -19,55 +19,49 @@ Copyright (C) 2016 Omron Adept Technologies, Inc.
      along with this program; if not, write to the Free Software
      Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-If you wish to redistribute ARIA under different terms, contact 
-Adept MobileRobots for information about a commercial version of ARIA at 
-robots@mobilerobots.com or 
+If you wish to redistribute ARIA under different terms, contact
+Adept MobileRobots for information about a commercial version of ARIA at
+robots@mobilerobots.com or
 Adept MobileRobots, 10 Columbia Drive, Amherst, NH 03031; +1-603-881-7960
 */
 #include "ArExport.h"
-#include "ariaOSDef.h"
 #include "ArJoyHandler.h"
 #include "ArLog.h"
-#include <errno.h>
+#include "ariaOSDef.h"
 #include "ariaUtil.h"
+#include <errno.h>
 
-bool ArJoyHandler::init(void)
-{
+bool ArJoyHandler::init(void) {
   int i;
 
   myLastOpenTry.setToNow();
   myJoyNumber = 0;
 
-  if (myUseOld)
-  {
+  if (myUseOld) {
     myOldJoyDesc = ArUtil::fopen("/dev/js0", "r");
-    if(myOldJoyDesc > 0)
-      ArLog::log(ArLog::Verbose, "ArJoyHandler: Opened /dev/js0 (old Linux device name scheme)");
-  }
-  else
-  {
-    for (i = 0; i < 32; i++)
-    {
+    if (myOldJoyDesc != NULL)
+      ArLog::log(
+          ArLog::Verbose,
+          "ArJoyHandler: Opened /dev/js0 (old Linux device name scheme)");
+  } else {
+    for (i = 0; i < 32; i++) {
       sprintf(myJoyNameTemp, "/dev/input/js%d", i);
-      if ((myJoyDesc = ArUtil::open(myJoyNameTemp, O_RDONLY | O_NONBLOCK)) > 0)
-      {
+      if ((myJoyDesc = ArUtil::open(myJoyNameTemp, O_RDONLY | O_NONBLOCK)) >
+          0) {
         ArLog::log(ArLog::Verbose, "ArJoyHandler: Opened %s", myJoyNameTemp);
         break;
       }
     }
   }
-  
-  if ((myUseOld && myOldJoyDesc != NULL) || (!myUseOld && myJoyDesc > 0))
-  {
+
+  if ((myUseOld && myOldJoyDesc != NULL) || (!myUseOld && myJoyDesc > 0)) {
     myPhysMax = 255;
     myInitialized = true;
     startCal();
     endCal();
     getData();
     return true;
-  } 
-  else 
-  {
+  } else {
     myJoyNumber = -1;
     myPhysMax = 255;
     myInitialized = false;
@@ -76,8 +70,7 @@ bool ArJoyHandler::init(void)
   }
 }
 
-void ArJoyHandler::getData(void)
-{
+void ArJoyHandler::getData(void) {
   if (myUseOld && !myInitialized)
     return;
 
@@ -91,13 +84,11 @@ void ArJoyHandler::getData(void)
     getNewData();
 }
 
-void ArJoyHandler::getOldData(void)
-{
+void ArJoyHandler::getOldData(void) {
 #ifdef linux
   int x, y;
-  if (myOldJoyDesc == NULL || !myInitialized || 
-      fread(&myJoyData, 1, JS_RETURN, myOldJoyDesc) != JS_RETURN) 
-  {
+  if (myOldJoyDesc == NULL || !myInitialized ||
+      fread(&myJoyData, 1, JS_RETURN, myOldJoyDesc) != JS_RETURN) {
     myAxes[1] = 0;
     myAxes[2] = 0;
     myAxes[3] = 0;
@@ -105,11 +96,9 @@ void ArJoyHandler::getOldData(void)
     myButtons[2] = false;
     myButtons[3] = false;
     myButtons[4] = false;
-  } 
-  else 
-  {
-    x = myJoyData.x - 128; 
-    y =  - (myJoyData.y - 128);
+  } else {
+    x = myJoyData.x - 128;
+    y = -(myJoyData.y - 128);
     if (x > myMaxX)
       myMaxX = x;
     if (x < myMinX)
@@ -130,61 +119,54 @@ void ArJoyHandler::getOldData(void)
 }
 
 /// Handles the reading of the data into the bins
-void ArJoyHandler::getNewData(void)
-{
+void ArJoyHandler::getNewData(void) {
 #ifdef linux
-  if (myLastOpenTry.mSecSince() > 125)
-  {
+  if (myLastOpenTry.mSecSince() > 125) {
     int tempDesc;
     myLastOpenTry.setToNow();
     sprintf(myJoyNameTemp, "/dev/input/js%d", myJoyNumber + 1);
-    if ((tempDesc = ArUtil::open(myJoyNameTemp, O_RDWR | O_NONBLOCK)) > 0)
-    {
-      ArLog::log(ArLog::Verbose, "ArJoyHandler: Opened next joydev %s", myJoyNameTemp);
+    if ((tempDesc = ArUtil::open(myJoyNameTemp, O_RDWR | O_NONBLOCK)) > 0) {
+      ArLog::log(ArLog::Verbose, "ArJoyHandler: Opened next joydev %s",
+                 myJoyNameTemp);
       close(myJoyDesc);
       myInitialized = true;
       myJoyDesc = tempDesc;
       myJoyNumber++;
-    }
-    else if (myJoyNumber > 0)
-    {
-      if ((tempDesc = ArUtil::open("/dev/input/js0", O_RDWR | O_NONBLOCK)) > 0)
-      {
-	myInitialized = true;
-	ArLog::log(ArLog::Verbose, "ArJoyHandler: Opened first joydev /dev/input/js0");
-	close(myJoyDesc);
-	myJoyDesc = tempDesc;
-	myJoyNumber = 0;
+    } else if (myJoyNumber > 0) {
+      if ((tempDesc = ArUtil::open("/dev/input/js0", O_RDWR | O_NONBLOCK)) >
+          0) {
+        myInitialized = true;
+        ArLog::log(ArLog::Verbose,
+                   "ArJoyHandler: Opened first joydev /dev/input/js0");
+        close(myJoyDesc);
+        myJoyDesc = tempDesc;
+        myJoyNumber = 0;
       }
     }
   }
 
   struct js_event e;
-  while (read (myJoyDesc, &e, sizeof(struct js_event)) > 0)
-  {
+  while (read(myJoyDesc, &e, sizeof(struct js_event)) > 0) {
     // see if its a button even
-    if ((e.type & JS_EVENT_BUTTON))
-    {
+    if ((e.type & JS_EVENT_BUTTON)) {
       // if its one of the buttons we want set it
-      myButtons[e.number+1] = (bool)e.value;
+      myButtons[e.number + 1] = (bool)e.value;
     }
     // see if its an axis
-    if ((e.type & JS_EVENT_AXIS))
-    {
+    if ((e.type & JS_EVENT_AXIS)) {
       // if its one of the buttons we want set it
       if (e.number == 0)
-      	myAxes[e.number+1] = ArMath::roundInt(e.value * 128.0 / 32767.0);
+        myAxes[e.number + 1] = ArMath::roundInt(e.value * 128.0 / 32767.0);
       else
-	myAxes[e.number+1] = ArMath::roundInt(-e.value * 128.0 / 32767.0);
+        myAxes[e.number + 1] = ArMath::roundInt(-e.value * 128.0 / 32767.0);
       if (e.number == 2)
-	myHaveZ = true;
+        myHaveZ = true;
     }
-    //printf("%d 0x%x 0x%x\n", e.value, e.type, e.number);
+    // printf("%d 0x%x 0x%x\n", e.value, e.type, e.number);
   }
-  if (errno != EAGAIN)
-  {
-    //ArLog::log(ArLog::Terse, "ArJoyHandler::getUnfiltered: Trouble reading data.");
+  if (errno != EAGAIN) {
+    // ArLog::log(ArLog::Terse, "ArJoyHandler::getUnfiltered: Trouble reading
+    // data.");
   }
-#endif // ifdef linux 
+#endif // ifdef linux
 }
-
